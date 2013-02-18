@@ -34,16 +34,16 @@ enum my_protocols {
 
 /* Handle serving files over HTTP */
 static int callback_http(struct libwebsocket_context *context,
-		struct libwebsocket *wsi,
-		enum libwebsocket_callback_reasons reason, void *user,
-							   void *in, size_t len)
+                         struct libwebsocket *wsi,
+                         enum libwebsocket_callback_reasons reason,
+                         void */* user */, void *in, size_t len)
 {
 	switch (reason) {
 	case LWS_CALLBACK_HTTP:
 		fprintf(stderr, "serving HTTP URI %s\n", (char *)in);
 
-		if (in && strcmp((const char*)in, "/") == 0) {
-			if (libwebsockets_serve_http_file(wsi,
+		if (in && strncmp((const char*)in, "/", len) == 0) {
+			if (libwebsockets_serve_http_file(context, wsi,
                                               "./cvpca.html", "text/html"))
 				fprintf(stderr, "Failed to send cvpca.html\n");
 			break;
@@ -127,45 +127,21 @@ static struct libwebsocket_protocols protocols[] = {
 	{
 		"http-only",		/* name */
 		callback_http,		/* callback */
-		0			/* per_session_data_size */
+		0,          /* per_session_data_size */
+		0,          /* max frame size / rx buffer */
+        0, 0,
 	},
 	{
 		"phonepca-protocol",
 		callback_phonepca,
-		sizeof(struct per_session_data__cj)
+		sizeof(struct per_session_data__cj),
+        1024,
+        0, 0,
 	},
 	{
-		NULL, NULL, 0		/* End of list */
+		NULL, NULL, 0, 0, 0, 0  /* End of list */
 	}
 };
-
-int run_ws_server()
-{
-	fprintf(stderr, "phonepca server, port %d\n", port);
-
-	context = libwebsocket_create_context(port, 0, protocols,
-                                          libwebsocket_internal_extensions,
-                                          0, 0, -1, -1, 0);
-	if (context == NULL) {
-		fprintf(stderr, "libwebsocket init failed\n");
-		return -1;
-	}
-
-	/* Using the "no fork" approach */
-
-	while (1) {
-		libwebsocket_service(context, 50);
-	}
-
-	libwebsocket_context_destroy(context);
-}
-
-// int main(int argc, char **argv)
-// {
-//     int rc = run_ws_server();
-
-//     return rc;
-// }
 
 CvPCA_Server::~CvPCA_Server()
 {
@@ -174,9 +150,20 @@ CvPCA_Server::~CvPCA_Server()
 
 bool CvPCA_Server::start(int port)
 {
-	context = libwebsocket_create_context(port, 0, protocols,
-                                          libwebsocket_internal_extensions,
-                                          0, 0, -1, -1, 0);
+	fprintf(stderr, "phonepca server, port %d\n", port);
+
+	struct lws_context_creation_info info;
+	memset(&info, 0, sizeof info);
+	info.port = port;
+
+	info.protocols = protocols;
+#ifndef LWS_NO_EXTENSIONS
+	info.extensions = libwebsocket_get_internal_extensions();
+#endif
+	info.gid = -1;
+	info.uid = -1;
+
+	context = libwebsocket_create_context(&info);
 	if (context == NULL) {
 		fprintf(stderr, "libwebsocket init failed\n");
 		return true;
