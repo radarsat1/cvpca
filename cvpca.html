@@ -15,13 +15,15 @@ function open_web_socket()
         WebSock = WebSocket;
     var url = "ws://localhost:8080";
     ws = new WebSock(url, 'phonepca');
+
     var onclose = function () {
         text.innerHTML = 'websocket closed <'+url+'>';
 
         // Try again in 3 seconds
         setTimeout(open_web_socket, 3000);
     };
-    ws.onopen = function (ws) {return function () {
+
+    ws.onopen = function () {
         text.innerHTML = 'websocket open <'+url+'>';
         ws.send('I ' + 'Browser id?');
         var i = 0;
@@ -33,11 +35,15 @@ function open_web_socket()
             clearInterval(t);
             onclose();
         }
-    }} (ws);
+    };
+
     ws.onmessage = function (msg) {
         text.innerHTML = 'websocket message: '+msg.data;
     };
+
     ws.onclose = onclose;
+
+    return ws;
 }
 
 function init()
