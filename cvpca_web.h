@@ -7,10 +7,13 @@
 #include <atomic>
 #include <queue>
 
+class CvPCA_Server_Impl;
+
 class CvPCA_Server
 {
   public:
-    ~CvPCA_Server();
+    CvPCA_Server();
+    virtual ~CvPCA_Server();
 
     bool start(int port);
     void stop();
@@ -18,9 +21,7 @@ class CvPCA_Server
     std::shared_ptr<std::queue<std::string>> get_queue();
 
   private:
-    std::unique_ptr<std::thread> server_thread;
-    std::shared_ptr<std::queue<std::string>> q1, q2;
-    bool done;
+    std::unique_ptr<CvPCA_Server_Impl> impl;
 };
 
 #endif // _CVPCA_WEB_H_
