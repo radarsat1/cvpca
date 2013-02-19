@@ -1,0 +1,5 @@
+Makefile
+cvpca
+moc_cvpca_gui.cpp
+ui_window.h
+*.o
