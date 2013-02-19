@@ -5,6 +5,8 @@
 #include "cvpca_gui.h"
 #include "cvpca.h"
 #include "ui_window.h"
+
+#include <iostream>
  
 int run_gui(int argc, char *argv[])
 {
@@ -35,7 +37,12 @@ int run_gui(int argc, char *argv[])
     Lambda t([&](){
             auto q=server.get_queue();
             if (!q.empty())
-                printf("get_queue: %d\n", q.size());
+                std::cout << "get_queue: " << q.size() << std::endl;
+            while (!q.empty()) {
+                auto i = q.front();
+                std::cout << (std::string)i << std::endl;
+                q.pop();
+            }
         });
     QObject::connect(timer, SIGNAL(timeout()), &t, SLOT(call()));
 

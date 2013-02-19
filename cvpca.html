@@ -23,9 +23,10 @@ function open_web_socket()
     };
     ws.onopen = function (ws) {return function () {
         text.innerHTML = 'websocket open <'+url+'>';
+        ws.send('I ' + 'Browser id?');
         var i = 0;
         var t = setInterval(function(){
-            ws.send('test-' + (i++));
+            ws.send('G ' + [i++,i++,i++]);
         }, 100);
         ws.onclose = function() {
             ws.onclose = onclose;

@@ -10,6 +10,8 @@
 #include <string>
 #include <mutex>
 #include <array>
+#include <thread>
+#include <sstream>
 
 #include "cvpca_web.h"
 
@@ -24,15 +26,15 @@ class CvPCA_Server_Impl
     bool start(int port);
     void stop();
 
-    std::queue<std::string> &get_queue();
+    std::queue<CvPCA_Item> &get_queue();
 
   private:
     std::unique_ptr<std::thread> server_thread;
-    std::queue<std::string> q1, q2;
+    std::queue<CvPCA_Item> q1, q2;
     bool done;
 
     std::queue<std::string> send_queue;
-    std::queue<std::string> *read_queue;
+    std::queue<CvPCA_Item> *read_queue;
     std::mutex g_read_queue_mutex;
     std::mutex g_send_queue_mutex;
 
@@ -60,12 +62,39 @@ class CvPCA_Session
 {
   public:
     CvPCA_Session(libwebsocket *_wsi)
-        : wsi(_wsi) {}
+        : wsi(_wsi)
+    {
+        id = unique_id++;
+    }
     ~CvPCA_Session();
+
+    int get_id() { return id; }
 
   private:
     struct libwebsocket *wsi;
+    int id;
+    static int unique_id;
 };
+int CvPCA_Session::unique_id = 0;
+
+CvPCA_Item::operator std::string ()
+{
+    char str[1024];
+    switch (type) {
+    case CVPCA_INFO:
+        sprintf(str, "I.%d %s", id, info.c_str());
+        break;
+    case CVPCA_ACCEL:
+        sprintf(str, "G.%d %f,%f,%f", id, accel[0], accel[1], accel[2]);
+        break;
+    case CVPCA_ORIENT:
+        sprintf(str, "O.%d %f,%f,%f", id, orient[0], orient[1], orient[2]);
+        break;
+    default:
+        sprintf(str, "?.%d", id);
+    }
+    return std::string(str);
+}
 
 /* Handle serving files over HTTP */
 int CvPCA_Server_Impl::callback_http(struct libwebsocket_context *context,
@@ -140,10 +169,45 @@ int CvPCA_Server_Impl::callback_phonepca(struct libwebsocket_context *context,
 
 	case LWS_CALLBACK_RECEIVE:
         {
-            std::string s((const char*)in, len);
-            g_read_queue_mutex.lock();
-            read_queue->push(s);
-            g_read_queue_mutex.unlock();
+            CvPCA_Item item;
+            item.id = session->get_id();
+            int r = -1;
+
+            if (len < 1)
+                break;
+
+            switch (((char*)in)[0]) {
+            case 'G':
+                r = sscanf((char*)in, "G %f,%f,%f",
+                           &item.accel[0],
+                           &item.accel[1],
+                           &item.accel[2]);
+                item.type = CvPCA_Item::CVPCA_ACCEL;
+                break;
+            case 'O':
+                r = sscanf((char*)in, "G %f,%f,%f",
+                           &item.orient[0],
+                           &item.orient[1],
+                           &item.orient[2]);
+                item.type = CvPCA_Item::CVPCA_ORIENT;
+                break;
+            case 'I':
+                if (len>3) {
+                    r = 3;
+                    item.info = std::string(&((char*)in)[2], len-2);
+                }
+                item.type = CvPCA_Item::CVPCA_INFO;
+                break;
+            }
+
+            if (r == 3)
+            {
+                g_read_queue_mutex.lock();
+                read_queue->push(item);
+                g_read_queue_mutex.unlock();
+            }
+            else
+                printf("Error on websocket input `%s'\n", (char*)in);
         }
 
 	default:
@@ -266,12 +330,12 @@ void CvPCA_Server_Impl::stop()
     }
 }
 
-std::queue<std::string> &CvPCA_Server::get_queue()
+std::queue<CvPCA_Item> &CvPCA_Server::get_queue()
 {
     return impl->get_queue();
 }
 
-std::queue<std::string> &CvPCA_Server_Impl::get_queue()
+std::queue<CvPCA_Item> &CvPCA_Server_Impl::get_queue()
 {
     auto mtq = &q1;
     if (read_queue == &q1)
