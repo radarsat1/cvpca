@@ -18,7 +18,7 @@ class CvPCA_Server
     bool start(int port);
     void stop();
 
-    std::shared_ptr<std::queue<std::string>> get_queue();
+    std::queue<std::string> &get_queue();
 
   private:
     std::unique_ptr<CvPCA_Server_Impl> impl;

@@ -1,18 +1,52 @@
 <html>
 <head>
 <title>CvPCA</title>
-<script language="text/javascript">
+<script language="javascript">
 
 var ws;
 
+function open_web_socket()
+{
+    var text = document.getElementById('text');
+    var WebSock = null;
+    if (typeof MozWebSocket!=='undefined')
+        WebSock = MozWebSocket;
+    else
+        WebSock = WebSocket;
+    var url = "ws://localhost:8080";
+    ws = new WebSock(url, 'phonepca');
+    var onclose = function () {
+        text.innerHTML = 'websocket closed <'+url+'>';
+
+        // Try again in 3 seconds
+        setTimeout(open_web_socket, 3000);
+    };
+    ws.onopen = function (ws) {return function () {
+        text.innerHTML = 'websocket open <'+url+'>';
+        var i = 0;
+        var t = setInterval(function(){
+            ws.send('test-' + (i++));
+        }, 100);
+        ws.onclose = function() {
+            ws.onclose = onclose;
+            clearInterval(t);
+            onclose();
+        }
+    }} (ws);
+    ws.onmessage = function (msg) {
+        text.innerHTML = 'websocket message: '+msg.data;
+    };
+    ws.onclose = onclose;
+}
+
 function init()
 {
-    ws = new WebSocket("ws://localhost:8080/
+    ws = open_web_socket();
 }
 
 </script>
 </head>
 <body onload="init();">
-Test
+<div id='text'></div>
 </body>
 </html>

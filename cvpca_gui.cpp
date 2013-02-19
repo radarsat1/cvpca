@@ -32,8 +32,11 @@ int run_gui(int argc, char *argv[])
     QTimer *timer = new QTimer(win);
     timer->start(1000);
 
-    Lambda t([&](){ auto q=server.get_queue();
-            printf("get_queue: %d\n", q?q->size():0); });
+    Lambda t([&](){
+            auto q=server.get_queue();
+            if (!q.empty())
+                printf("get_queue: %d\n", q.size());
+        });
     QObject::connect(timer, SIGNAL(timeout()), &t, SLOT(call()));
 
     win->show();

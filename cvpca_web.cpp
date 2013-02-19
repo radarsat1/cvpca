@@ -24,15 +24,15 @@ class CvPCA_Server_Impl
     bool start(int port);
     void stop();
 
-    std::shared_ptr<std::queue<std::string>> get_queue();
+    std::queue<std::string> &get_queue();
 
   private:
     std::unique_ptr<std::thread> server_thread;
-    std::shared_ptr<std::queue<std::string>> q1, q2;
+    std::queue<std::string> q1, q2;
     bool done;
 
     std::queue<std::string> send_queue;
-    std::shared_ptr<std::queue<std::string>> read_queue;
+    std::queue<std::string> *read_queue;
     std::mutex g_read_queue_mutex;
     std::mutex g_send_queue_mutex;
 
@@ -105,7 +105,7 @@ int CvPCA_Server_Impl::callback_phonepca(struct libwebsocket_context *context,
 	switch (reason) {
 
 	case LWS_CALLBACK_ESTABLISHED:
-		fprintf(stderr, "callback_cj: "
+		fprintf(stderr, "callback_phonepca: "
 						 "LWS_CALLBACK_ESTABLISHED\n");
 
         new (session) CvPCA_Session(wsi);
@@ -134,13 +134,12 @@ int CvPCA_Server_Impl::callback_phonepca(struct libwebsocket_context *context,
                                     strlen((const char *)buf),
                                     LWS_WRITE_TEXT);
             if (rc < 0)
-                fprintf(stderr, "ERROR writing to socket (cj)");
+                fprintf(stderr, "ERROR writing to socket (phonepca)");
         }
 		break;
 
 	case LWS_CALLBACK_RECEIVE:
         {
-            printf("in, len=%d: %s\n", len, (char*)in);
             std::string s((const char*)in, len);
             g_read_queue_mutex.lock();
             read_queue->push(s);
@@ -166,6 +165,7 @@ CvPCA_Server::~CvPCA_Server()
 
 CvPCA_Server_Impl::CvPCA_Server_Impl()
     : done(false),
+      read_queue(&q1),
       protocols({
       /* first protocol must always be HTTP handler */
       {
@@ -184,7 +184,7 @@ CvPCA_Server_Impl::CvPCA_Server_Impl()
           0, 0,
       },
       {
-          "phonepca-protocol",
+          "phonepca",
           [](struct libwebsocket_context *context,
              struct libwebsocket *wsi,
              enum libwebsocket_callback_reasons reason,
@@ -266,27 +266,29 @@ void CvPCA_Server_Impl::stop()
     }
 }
 
-std::shared_ptr<std::queue<std::string>> CvPCA_Server::get_queue()
+std::queue<std::string> &CvPCA_Server::get_queue()
 {
     return impl->get_queue();
 }
 
-std::shared_ptr<std::queue<std::string>> CvPCA_Server_Impl::get_queue()
+std::queue<std::string> &CvPCA_Server_Impl::get_queue()
 {
-    auto newq = std::shared_ptr<std::queue<std::string>>(
-        new std::queue<std::string>());
+    auto mtq = &q1;
+    if (read_queue == &q1)
+        mtq = &q2;
+    while (!mtq->empty())
+        mtq->pop();
 
     auto q = read_queue;
-
-    g_read_queue_mutex.lock();
-    if (read_queue == q1) {
-        read_queue = q2;
-        q1 = newq;
+    if (read_queue == &q1) {
+        g_read_queue_mutex.lock();
+        read_queue = &q2;
+        g_read_queue_mutex.unlock();
     } else {
-        read_queue = q1;
-        q2 = newq;
+        g_read_queue_mutex.lock();
+        read_queue = &q1;
+        g_read_queue_mutex.unlock();
     }
-    g_read_queue_mutex.unlock();
 
-    return q;
+    return *q;
 }
