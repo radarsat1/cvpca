@@ -7,6 +7,8 @@
 #include "ui_window.h"
 
 #include <iostream>
+#include <fstream>
+#include <unordered_map>
  
 int run_gui(int argc, char *argv[])
 {
@@ -36,7 +38,24 @@ int run_gui(int argc, char *argv[])
     QObject::connect(w.buttonStopRecording, SIGNAL(clicked()),
                      &d, SLOT(call()));
 
-    w.labelCount->setText("0");
+    std::unordered_map<int, std::list<CvPCA_Item>> records;
+
+    Lambda clear([&](){ records.clear(); w.labelCount->setNum(0); });
+    QObject::connect(w.buttonClear, SIGNAL(clicked()), &clear, SLOT(call()));
+
+    Lambda save([&](){
+            std::ofstream out;
+            out.open("data.txt");
+            for (auto kv : records) {
+                out << kv.first << std::endl;
+                for (auto item : kv.second) {
+                    out << (std::string)item << std::endl;
+                }
+            }
+        });
+    QObject::connect(w.buttonSave, SIGNAL(clicked()), &save, SLOT(call()));
+
+    w.labelCount->setNum(0);
 
     // Set up the timer
     QTimer *timer = new QTimer(win);
@@ -44,11 +63,11 @@ int run_gui(int argc, char *argv[])
 
     Lambda t([&](){
             auto q=server.get_queue();
-            if (!q.empty())
-                std::cout << "get_queue: " << q.size() << std::endl;
             while (!q.empty()) {
-                auto i = q.front();
-                std::cout << (std::string)i << std::endl;
+                auto item = q.front();
+                if (item.type == CvPCA_Item::CVPCA_ACCEL)
+                    records[item.id].push_back(item);
+                w.labelCount->setNum((int)records[item.id].size());
                 q.pop();
             }
         });
