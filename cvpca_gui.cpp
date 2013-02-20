@@ -77,6 +77,9 @@ int run_gui(int argc, char *argv[])
                 QListWidgetItem *item = new QListWidgetItem(w.connectionList);
                 item->setText(((std::string)c).c_str());
             }
+            QString n;
+            n.setNum(conns.size());
+            w.connectedLabel->setText("Connected: " + n);
         });
     QObject::connect(timer, SIGNAL(timeout()), &t, SLOT(call()));
 
