@@ -5,6 +5,7 @@
 #include <memory>
 #include <queue>
 #include <array>
+#include <list>
 
 struct CvPCA_Item
 {
@@ -18,6 +19,16 @@ struct CvPCA_Item
         std::array<float,3> accel;
         std::array<float,3> orient;
     };
+    std::string info;
+
+    operator std::string ();
+};
+
+struct CvPCA_Connection
+{
+    int id;
+    std::string ip;
+    std::string hostname;
     std::string info;
 
     operator std::string ();
@@ -39,6 +50,8 @@ class CvPCA_Server
     bool is_recording();
 
     std::queue<CvPCA_Item> &get_queue();
+
+    std::list<CvPCA_Connection> get_connections();
 
   private:
     std::unique_ptr<CvPCA_Server_Impl> impl;

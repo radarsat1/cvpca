@@ -13,6 +13,7 @@
 #include <thread>
 #include <sstream>
 #include <atomic>
+#include <unordered_map>
 
 #include "cvpca_web.h"
 
@@ -31,6 +32,7 @@ class CvPCA_Server_Impl
     void stop_recording();
 
     std::queue<CvPCA_Item> &get_queue();
+    std::list<CvPCA_Connection> get_connections();
 
   private:
     std::unique_ptr<std::thread> server_thread;
@@ -41,6 +43,9 @@ class CvPCA_Server_Impl
     std::queue<CvPCA_Item> *read_queue;
     std::mutex read_queue_mutex;
     std::mutex send_queue_mutex;
+
+    std::unordered_map<int, CvPCA_Connection> connections;
+    std::mutex connection_list_mutex;
 
     enum protocols {
         PROTOCOL_HTTP = 0, /* always first */
@@ -104,6 +109,13 @@ CvPCA_Item::operator std::string ()
     return std::string(str);
 }
 
+CvPCA_Connection::operator std::string ()
+{
+    std::stringstream ss;
+    ss << id << " " << hostname << " " << ip << " " << info;
+    return ss.str();
+}
+
 /* Handle serving files over HTTP */
 int CvPCA_Server_Impl::callback_http(struct libwebsocket_context *context,
                                      struct libwebsocket *wsi,
@@ -138,6 +150,7 @@ int CvPCA_Server_Impl::callback_phonepca(struct libwebsocket_context *context,
 	int rc;
 
     CvPCA_Session *session = static_cast<CvPCA_Session*>(user);
+    CvPCA_Connection conn;
 
 	switch (reason) {
 
@@ -147,8 +160,28 @@ int CvPCA_Server_Impl::callback_phonepca(struct libwebsocket_context *context,
 
         new (session) CvPCA_Session(wsi);
 
+        {
+            int fd = libwebsocket_get_socket_fd(wsi);
+            char hostname[256];
+            char ip[128];
+            libwebsockets_get_peer_addresses(context, wsi, fd,
+                                             hostname, 256, ip, 128);
+
+            conn.id = session->get_id();
+            conn.ip = ip;
+            conn.hostname = hostname;
+        }
+
+        connection_list_mutex.lock();
+        connections[conn.id] = conn;
+        connection_list_mutex.unlock();
+
         libwebsocket_callback_on_writable(context, wsi);
 		break;
+
+    case LWS_CALLBACK_CLOSED:
+        connections.erase(session->get_id());
+        break;
 
 	case LWS_CALLBACK_SERVER_WRITEABLE:
 
@@ -195,6 +228,13 @@ int CvPCA_Server_Impl::callback_phonepca(struct libwebsocket_context *context,
                 if (len>3) {
                     r = 3;
                     item.info = std::string(&((char*)in)[2], len-2);
+
+                    // TODO: This lock may block things, maybe better
+                    // to use queue for passing connection info and
+                    // keep the map on the GUI side?
+                    connection_list_mutex.lock();
+                    connections[session->get_id()].info = &((char*)in)[2];
+                    connection_list_mutex.unlock();
                 }
                 item.type = CvPCA_Item::CVPCA_INFO;
                 break;
@@ -329,6 +369,7 @@ void CvPCA_Server_Impl::stop()
     if (server_thread) {
         server_thread->join();
         server_thread = nullptr;
+        connections.clear();
     }
 }
 
@@ -357,6 +398,21 @@ std::queue<CvPCA_Item> &CvPCA_Server_Impl::get_queue()
     }
 
     return *q;
+}
+
+std::list<CvPCA_Connection> CvPCA_Server::get_connections()
+{
+    return impl->get_connections();
+}
+
+std::list<CvPCA_Connection> CvPCA_Server_Impl::get_connections()
+{
+    std::list<CvPCA_Connection> list;
+    connection_list_mutex.lock();
+    for (auto kv : connections)
+        list.push_back(kv.second);
+    connection_list_mutex.unlock();
+    return list;
 }
 
 bool CvPCA_Server::start_recording()

@@ -70,6 +70,13 @@ int run_gui(int argc, char *argv[])
                 w.labelCount->setNum((int)records[item.id].size());
                 q.pop();
             }
+
+            auto conns = server.get_connections();
+            w.connectionList->clear();
+            for (auto c : conns) {
+                QListWidgetItem *item = new QListWidgetItem(w.connectionList);
+                item->setText(((std::string)c).c_str());
+            }
         });
     QObject::connect(timer, SIGNAL(timeout()), &t, SLOT(call()));
 
