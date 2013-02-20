@@ -80,6 +80,26 @@ int run_gui(int argc, char *argv[])
         });
     QObject::connect(timer, SIGNAL(timeout()), &t, SLOT(call()));
 
+    // Editing gesture list
+    int gesture_count = 0;
+    Lambda add_gesture([&](){
+            QListWidgetItem *item = new QListWidgetItem(w.gestureList);
+            QString n;
+            n.setNum(gesture_count++);
+            item->setText("Gesture " + n);
+            item->setFlags(item->flags() | Qt::ItemIsEditable);
+        });
+    QObject::connect(w.addGestureButton, SIGNAL(clicked()),
+                     &add_gesture, SLOT(call()));
+
+    Lambda remove_gesture([&](){
+            QList<QListWidgetItem*> items = w.gestureList->selectedItems();
+            for (int i = 0; i < items.size(); i++)
+                delete items[i];
+        });
+    QObject::connect(w.removeGestureButton, SIGNAL(clicked()),
+                     &remove_gesture, SLOT(call()));
+
     win->show();
 
     return app.exec();
