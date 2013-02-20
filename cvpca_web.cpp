@@ -12,6 +12,7 @@
 #include <array>
 #include <thread>
 #include <sstream>
+#include <atomic>
 
 #include "cvpca_web.h"
 
@@ -26,17 +27,20 @@ class CvPCA_Server_Impl
     bool start(int port);
     void stop();
 
+    bool start_recording();
+    void stop_recording();
+
     std::queue<CvPCA_Item> &get_queue();
 
   private:
     std::unique_ptr<std::thread> server_thread;
     std::queue<CvPCA_Item> q1, q2;
     bool done;
+    bool recording;
 
-    std::queue<std::string> send_queue;
     std::queue<CvPCA_Item> *read_queue;
-    std::mutex g_read_queue_mutex;
-    std::mutex g_send_queue_mutex;
+    std::mutex read_queue_mutex;
+    std::mutex send_queue_mutex;
 
     enum protocols {
         PROTOCOL_HTTP = 0, /* always first */
@@ -56,19 +60,23 @@ class CvPCA_Server_Impl
                       enum libwebsocket_callback_reasons reason,
                       void *in, size_t len);
 
+    friend CvPCA_Server;
 };
 
 class CvPCA_Session
 {
   public:
     CvPCA_Session(libwebsocket *_wsi)
-        : wsi(_wsi)
+        : recording(false)
+        , wsi(_wsi)
     {
         id = unique_id++;
     }
     ~CvPCA_Session();
 
     int get_id() { return id; }
+
+    std::atomic<bool> recording;
 
   private:
     struct libwebsocket *wsi;
@@ -144,26 +152,18 @@ int CvPCA_Server_Impl::callback_phonepca(struct libwebsocket_context *context,
 
 	case LWS_CALLBACK_SERVER_WRITEABLE:
 
-        if (send_queue.empty()) {
-            g_send_queue_mutex.lock();
-            g_send_queue_mutex.unlock();
-        }
+        /* Set recording state for this session */
+        if (session->recording != recording)
+        {
+            const char *msg = recording ? "start" : "stop";
+            int len = strlen(msg);
 
-        if (!send_queue.empty()) {
-            std::string &s = send_queue.front();
-
-            char buf[s.size() + LWS_SEND_BUFFER_PRE_PADDING];
-            memcpy(buf + LWS_SEND_BUFFER_PRE_PADDING,
-                   s.c_str(), s.size());
-
-            send_queue.pop();
-            g_send_queue_mutex.unlock();
-
-            rc = libwebsocket_write(wsi, (unsigned char*)buf,
-                                    strlen((const char *)buf),
-                                    LWS_WRITE_TEXT);
+            rc = libwebsocket_write(wsi, (unsigned char*)msg,
+                                    len, LWS_WRITE_TEXT);
             if (rc < 0)
                 fprintf(stderr, "ERROR writing to socket (phonepca)");
+            else
+                session->recording = recording;
         }
 		break;
 
@@ -202,9 +202,9 @@ int CvPCA_Server_Impl::callback_phonepca(struct libwebsocket_context *context,
 
             if (r == 3)
             {
-                g_read_queue_mutex.lock();
+                read_queue_mutex.lock();
                 read_queue->push(item);
-                g_read_queue_mutex.unlock();
+                read_queue_mutex.unlock();
             }
             else
                 printf("Error on websocket input `%s'\n", (char*)in);
@@ -228,9 +228,10 @@ CvPCA_Server::~CvPCA_Server()
 
 
 CvPCA_Server_Impl::CvPCA_Server_Impl()
-    : done(false),
-      read_queue(&q1),
-      protocols({
+    : done(true)
+    , recording(false)
+    , read_queue(&q1)
+    , protocols({
       /* first protocol must always be HTTP handler */
       {
           "http-only",		/* name */
@@ -282,7 +283,8 @@ bool CvPCA_Server::start(int port)
 
 bool CvPCA_Server_Impl::start(int port)
 {
-	fprintf(stderr, "phonepca server, port %d\n", port);
+    if (!done)
+        return false;
 
 	struct lws_context_creation_info info;
 	memset(&info, 0, sizeof info);
@@ -345,14 +347,44 @@ std::queue<CvPCA_Item> &CvPCA_Server_Impl::get_queue()
 
     auto q = read_queue;
     if (read_queue == &q1) {
-        g_read_queue_mutex.lock();
+        read_queue_mutex.lock();
         read_queue = &q2;
-        g_read_queue_mutex.unlock();
+        read_queue_mutex.unlock();
     } else {
-        g_read_queue_mutex.lock();
+        read_queue_mutex.lock();
         read_queue = &q1;
-        g_read_queue_mutex.unlock();
+        read_queue_mutex.unlock();
     }
 
     return *q;
+}
+
+bool CvPCA_Server::start_recording()
+{
+    return impl->start_recording();
+}
+
+bool CvPCA_Server_Impl::start_recording()
+{
+    recording = true;
+    if (!done)
+        libwebsocket_callback_on_writable_all_protocol(&protocols[1]);
+    return false;
+}
+
+void CvPCA_Server::stop_recording()
+{
+    impl->stop_recording();
+}
+
+void CvPCA_Server_Impl::stop_recording()
+{
+    recording = false;
+    if (!done)
+        libwebsocket_callback_on_writable_all_protocol(&protocols[1]);
+}
+
+bool CvPCA_Server::is_recording()
+{
+    return impl->recording;
 }

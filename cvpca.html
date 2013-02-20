@@ -17,19 +17,23 @@ function open_web_socket()
     ws = new WebSock(url, 'phonepca');
 
     var onclose = function () {
-        text.innerHTML = 'websocket closed <'+url+'>';
+        if (text.innerHTML.search('closed') == -1)
+            text.innerHTML = '<br>websocket closed "'+url+'"' + text.innerHTML;
 
         // Try again in 3 seconds
         setTimeout(open_web_socket, 3000);
     };
 
     ws.onopen = function () {
-        text.innerHTML = 'websocket open <'+url+'>';
+        text.innerHTML = '<br>websocket open "'+url+'"';
+        ws.recording = false;
         ws.send('I ' + 'Browser id?');
         var i = 0;
         var t = setInterval(function(){
-            ws.send('G ' + [i++,i++,i++]);
+            if (ws.recording)
+                ws.send('G ' + [i++,i++,i++]);
         }, 100);
+
         ws.onclose = function() {
             ws.onclose = onclose;
             clearInterval(t);
@@ -38,7 +42,11 @@ function open_web_socket()
     };
 
     ws.onmessage = function (msg) {
-        text.innerHTML = 'websocket message: '+msg.data;
+        text.innerHTML = '<br>websocket message: "'+msg.data+'"' + text.innerHTML;
+        if (msg.data === 'start')
+            ws.recording = true;
+        else if (msg.data === 'stop')
+            ws.recording = false;
     };
 
     ws.onclose = onclose;

@@ -34,6 +34,10 @@ class CvPCA_Server
     bool start(int port);
     void stop();
 
+    bool start_recording();
+    void stop_recording();
+    bool is_recording();
+
     std::queue<CvPCA_Item> &get_queue();
 
   private:

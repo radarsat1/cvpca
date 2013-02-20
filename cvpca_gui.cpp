@@ -28,6 +28,14 @@ int run_gui(int argc, char *argv[])
     Lambda b([&](){ printf("Stop\n"); server.stop(); });
     QObject::connect(w.stopButton, SIGNAL(clicked()), &b, SLOT(call()));
 
+    Lambda c([&](){ server.start_recording(); });
+    QObject::connect(w.buttonStartRecording, SIGNAL(clicked()),
+                     &c, SLOT(call()));
+
+    Lambda d([&](){ server.stop_recording(); });
+    QObject::connect(w.buttonStopRecording, SIGNAL(clicked()),
+                     &d, SLOT(call()));
+
     w.labelCount->setText("0");
 
     // Set up the timer
