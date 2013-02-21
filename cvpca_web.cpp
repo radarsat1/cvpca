@@ -38,7 +38,8 @@ class CvPCA_Server_Impl
     std::unique_ptr<std::thread> server_thread;
     std::queue<CvPCA_Item> q1, q2;
     bool done;
-    bool recording;
+
+    std::atomic<bool> recording;
 
     std::queue<CvPCA_Item> *read_queue;
     std::mutex read_queue_mutex;
@@ -81,7 +82,7 @@ class CvPCA_Session
 
     int get_id() { return id; }
 
-    std::atomic<bool> recording;
+    bool recording;
 
   private:
     struct libwebsocket *wsi;
