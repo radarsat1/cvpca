@@ -224,10 +224,18 @@ int CvPCA_Server_Impl::callback_phonepca(struct libwebsocket_context *context,
         if (session->params_rev != params_rev)
         {
             char msg[pre + post + 256];
+            std::stringstream sgestures;
+            for (auto g : params.gestureList) {
+                sgestures << '"' << g << "\",";
+            }
+            std::string gestures = sgestures.str();
+            gestures[gestures.size()-1] = 0;
             len = snprintf(msg + pre, pre + post + 256,
                            "{\"cmd\": \"params\","
-                           "\"secondsPerGesture\": %d}",
-                           params.secondsPerGesture);
+                           "\"secondsPerGesture\": %d,"
+                           "\"gestures\": [%s]}",
+                           params.secondsPerGesture,
+                           gestures.c_str());
             rc = libwebsocket_write(wsi, (unsigned char*)(msg + pre),
                                     len, LWS_WRITE_TEXT);
             if (rc < 0)

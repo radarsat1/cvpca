@@ -43,6 +43,18 @@ void store_default_gesture_list()
     }
 }
 
+std::list<std::string> get_gesture_list()
+{
+    std::list<std::string> gestures;
+    for (int row=0; row < w.gestureList->count(); row++)
+    {
+        QListWidgetItem *i = w.gestureList->item(row);
+        const char *g = i->text().toAscii().constData();
+        gestures.push_back(g);
+    }
+    return gestures;
+}
+
 int run_gui(int argc, char *argv[])
 {
     QApplication app(argc, argv);
@@ -91,6 +103,7 @@ int run_gui(int argc, char *argv[])
             QString s(w.editSecondsPerGesture->text());
             CvPCA_Params params;
             params.secondsPerGesture = s.toInt();
+            params.gestureList = get_gesture_list();
             server.update_params(params);
         });
     QObject::connect(w.editSecondsPerGesture, SIGNAL(editingFinished()),

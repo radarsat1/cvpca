@@ -39,6 +39,7 @@ struct CvPCA_Params
 {
     CvPCA_Params();
     int secondsPerGesture;
+    std::list<std::string> gestureList;
 };
 
 class CvPCA_Server_Impl;
