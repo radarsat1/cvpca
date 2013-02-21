@@ -20,6 +20,7 @@ struct CvPCA_Item
         std::array<float,3> orient;
     };
     std::string info;
+    unsigned long long timestamp;
 
     operator std::string ();
 };

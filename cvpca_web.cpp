@@ -98,10 +98,12 @@ CvPCA_Item::operator std::string ()
         sprintf(str, "I.%d %s", id, info.c_str());
         break;
     case CVPCA_ACCEL:
-        sprintf(str, "G.%d %f,%f,%f", id, accel[0], accel[1], accel[2]);
+        sprintf(str, "G.%d %llu %f,%f,%f", id, timestamp,
+                accel[0], accel[1], accel[2]);
         break;
     case CVPCA_ORIENT:
-        sprintf(str, "O.%d %f,%f,%f", id, orient[0], orient[1], orient[2]);
+        sprintf(str, "O.%d %llu %f,%f,%f", id, timestamp,
+                orient[0], orient[1], orient[2]);
         break;
     default:
         sprintf(str, "?.%d", id);
@@ -204,29 +206,31 @@ int CvPCA_Server_Impl::callback_phonepca(struct libwebsocket_context *context,
         {
             CvPCA_Item item;
             item.id = session->get_id();
-            int r = -1;
+            bool ok = false;
 
             if (len < 1)
                 break;
 
             switch (((char*)in)[0]) {
             case 'G':
-                r = sscanf((char*)in, "G %f,%f,%f",
-                           &item.accel[0],
-                           &item.accel[1],
-                           &item.accel[2]);
+                ok = sscanf((char*)in, "G %llu %f,%f,%f",
+                            &item.timestamp,
+                            &item.accel[0],
+                            &item.accel[1],
+                            &item.accel[2]) == 4;
                 item.type = CvPCA_Item::CVPCA_ACCEL;
                 break;
             case 'O':
-                r = sscanf((char*)in, "G %f,%f,%f",
-                           &item.orient[0],
-                           &item.orient[1],
-                           &item.orient[2]);
+                ok = sscanf((char*)in, "G %llu %f,%f,%f",
+                            &item.timestamp,
+                            &item.orient[0],
+                            &item.orient[1],
+                            &item.orient[2]) == 4;
                 item.type = CvPCA_Item::CVPCA_ORIENT;
                 break;
             case 'I':
                 if (len>3) {
-                    r = 3;
+                    ok = true;
                     item.info = std::string(&((char*)in)[2], len-2);
 
                     // TODO: This lock may block things, maybe better
@@ -240,7 +244,7 @@ int CvPCA_Server_Impl::callback_phonepca(struct libwebsocket_context *context,
                 break;
             }
 
-            if (r == 3)
+            if (ok)
             {
                 read_queue_mutex.lock();
                 read_queue->push(item);

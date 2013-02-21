@@ -28,10 +28,12 @@ function open_web_socket()
         text.innerHTML = '<br>websocket open "'+url+'"';
         ws.recording = false;
         ws.send('I ' + 'Browser id?');
-        var i = 0;
         var t = setInterval(function(){
             if (ws.recording)
-                ws.send('G ' + [i++,i++,i++]);
+                ws.send('G ' + (new Date()-0) + ' '
+                        + [Math.random()*4-2,
+                           Math.random()*4-2,
+                           Math.random()*4-2]);
         }, 100);
 
         ws.onclose = function() {
