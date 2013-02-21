@@ -206,10 +206,11 @@ int CvPCA_Server_Impl::callback_phonepca(struct libwebsocket_context *context,
         /* Set recording state for this session */
         if (session->recording != recording)
         {
-            char msg[pre + post + 10];
+            char msg[pre + post + 32];
 
-            strcpy(msg+pre, recording ? "start" : "stop");
-            int len = strlen(msg+pre);
+            len = snprintf(msg+pre, pre+post+32,
+                           "{\"cmd\": \"%s\"}",
+                           recording ? "start" : "stop");
 
             rc = libwebsocket_write(wsi, (unsigned char*)(msg+pre),
                                     len, LWS_WRITE_TEXT);
@@ -223,7 +224,9 @@ int CvPCA_Server_Impl::callback_phonepca(struct libwebsocket_context *context,
         if (session->params_rev != params_rev)
         {
             char msg[pre + post + 256];
-            len = snprintf(msg + pre, pre + post + 256, "secondsPerGesture %d",
+            len = snprintf(msg + pre, pre + post + 256,
+                           "{\"cmd\": \"params\","
+                           "\"secondsPerGesture\": %d}",
                            params.secondsPerGesture);
             rc = libwebsocket_write(wsi, (unsigned char*)(msg + pre),
                                     len, LWS_WRITE_TEXT);
