@@ -55,6 +55,19 @@ int run_gui(int argc, char *argv[])
         });
     QObject::connect(w.buttonSave, SIGNAL(clicked()), &save, SLOT(call()));
 
+    Lambda update_params([&](){
+            QString s(w.editSecondsPerGesture->text());
+            CvPCA_Params params;
+            params.secondsPerGesture = s.toInt();
+            server.update_params(params);
+        });
+    QObject::connect(w.editSecondsPerGesture, SIGNAL(editingFinished()),
+                     &update_params, SLOT(call()));
+
+    w.editSecondsPerGesture->setText(
+        QString::number(
+            server.get_params().secondsPerGesture));
+
     w.labelCount->setNum(0);
 
     // Set up the timer

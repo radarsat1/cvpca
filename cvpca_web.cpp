@@ -31,6 +31,9 @@ class CvPCA_Server_Impl
     bool start_recording();
     void stop_recording();
 
+    void update_params(const CvPCA_Params&);
+    const CvPCA_Params get_params();
+
     std::queue<CvPCA_Item> &get_queue();
     std::list<CvPCA_Connection> get_connections();
 
@@ -40,6 +43,9 @@ class CvPCA_Server_Impl
     bool done;
 
     std::atomic<bool> recording;
+
+    CvPCA_Params params;
+    int params_rev;
 
     std::queue<CvPCA_Item> *read_queue;
     std::mutex read_queue_mutex;
@@ -74,6 +80,7 @@ class CvPCA_Session
   public:
     CvPCA_Session(libwebsocket *_wsi)
         : recording(false)
+        , params_rev(-1)
         , wsi(_wsi)
     {
         id = unique_id++;
@@ -83,6 +90,7 @@ class CvPCA_Session
     int get_id() { return id; }
 
     bool recording;
+    int params_rev;
 
   private:
     struct libwebsocket *wsi;
@@ -117,6 +125,11 @@ CvPCA_Connection::operator std::string ()
     std::stringstream ss;
     ss << id << " " << hostname << " " << ip << " " << info;
     return ss.str();
+}
+
+CvPCA_Params::CvPCA_Params()
+    : secondsPerGesture(30)
+{
 }
 
 /* Handle serving files over HTTP */
@@ -205,6 +218,21 @@ int CvPCA_Server_Impl::callback_phonepca(struct libwebsocket_context *context,
             else
                 session->recording = recording;
         }
+
+        /* Check if params need updating for this session */
+        if (session->params_rev != params_rev)
+        {
+            char msg[pre + post + 256];
+            len = snprintf(msg + pre, pre + post + 256, "secondsPerGesture %d",
+                           params.secondsPerGesture);
+            rc = libwebsocket_write(wsi, (unsigned char*)(msg + pre),
+                                    len, LWS_WRITE_TEXT);
+            if (rc < 0)
+                fprintf(stderr, "ERROR writing to socket (phonepca)");
+            else
+                session->params_rev = params_rev;
+        }
+
 		break;
 
 	case LWS_CALLBACK_RECEIVE:
@@ -279,6 +307,7 @@ CvPCA_Server::~CvPCA_Server()
 CvPCA_Server_Impl::CvPCA_Server_Impl()
     : done(true)
     , recording(false)
+    , params_rev(0)
     , read_queue(&q1)
     , protocols({
       /* first protocol must always be HTTP handler */
@@ -452,4 +481,27 @@ void CvPCA_Server_Impl::stop_recording()
 bool CvPCA_Server::is_recording()
 {
     return impl->recording;
+}
+
+void CvPCA_Server::update_params(const CvPCA_Params &params)
+{
+    impl->update_params(params);
+}
+
+void CvPCA_Server_Impl::update_params(const CvPCA_Params &_params)
+{
+    params = _params;
+    params_rev ++;
+    if (!done)
+        libwebsocket_callback_on_writable_all_protocol(&protocols[1]);
+}
+
+const CvPCA_Params CvPCA_Server::get_params()
+{
+    return impl->get_params();
+}
+
+const CvPCA_Params CvPCA_Server_Impl::get_params()
+{
+    return params;
 }

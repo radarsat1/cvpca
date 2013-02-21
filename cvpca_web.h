@@ -35,6 +35,12 @@ struct CvPCA_Connection
     operator std::string ();
 };
 
+struct CvPCA_Params
+{
+    CvPCA_Params();
+    int secondsPerGesture;
+};
+
 class CvPCA_Server_Impl;
 
 class CvPCA_Server
@@ -49,6 +55,9 @@ class CvPCA_Server
     bool start_recording();
     void stop_recording();
     bool is_recording();
+
+    void update_params(const CvPCA_Params&);
+    const CvPCA_Params get_params();
 
     std::queue<CvPCA_Item> &get_queue();
 

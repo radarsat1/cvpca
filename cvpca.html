@@ -45,10 +45,13 @@ function open_web_socket()
 
     ws.onmessage = function (msg) {
         text.innerHTML = '<br>websocket message: "'+msg.data+'"' + text.innerHTML;
-        if (msg.data === 'start')
+        command = msg.data.split(' ');
+        if (command[0] === 'start')
             ws.recording = true;
-        else if (msg.data === 'stop')
+        else if (command[0] === 'stop')
             ws.recording = false;
+        else if (command[0] === 'secondsPerGesture')
+            ws.secondsPerGesture = parseInt(command[1]);
     };
 
     ws.onclose = onclose;
