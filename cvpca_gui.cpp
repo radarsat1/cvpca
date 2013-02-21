@@ -9,14 +9,46 @@
 #include <iostream>
 #include <fstream>
 #include <unordered_map>
- 
+
+static Ui::MainWindow w;
+
+void load_default_gesture_list()
+{
+    // Load the previous gesture list
+    try
+    {
+        std::ifstream file("gestures.txt");
+        while (file.good()) {
+            char g[256] = "";
+            file.getline(g, 256);
+            if (g[0] != 0) {
+                auto item = new QListWidgetItem(w.gestureList);
+                item->setText(g);
+            }
+        }
+    }
+    catch (...) {
+        printf("exception\n");
+    }
+}
+
+void store_default_gesture_list()
+{
+    std::ofstream file("gestures.txt");
+    for (int row=0; row < w.gestureList->count(); row++)
+    {
+        QListWidgetItem *i = w.gestureList->item(row);
+        const char *g = i->text().toAscii().constData();
+        file << g << std::endl;
+    }
+}
+
 int run_gui(int argc, char *argv[])
 {
     QApplication app(argc, argv);
 
     QMainWindow *win = new QMainWindow;
 
-    Ui::MainWindow w;
     w.setupUi(win);
 
     w.portEdit->setText("8080");
@@ -116,7 +148,15 @@ int run_gui(int argc, char *argv[])
     QObject::connect(w.removeGestureButton, SIGNAL(clicked()),
                      &remove_gesture, SLOT(call()));
 
+    load_default_gesture_list();
+    update_params.call();
+
     win->show();
 
-    return app.exec();
+    int r = app.exec();
+
+    if (r == 0)
+        store_default_gesture_list();
+
+    return r;
 }
