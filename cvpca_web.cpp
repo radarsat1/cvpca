@@ -151,6 +151,9 @@ int CvPCA_Server_Impl::callback_phonepca(struct libwebsocket_context *context,
 {
 	int rc;
 
+    const size_t pre = LWS_SEND_BUFFER_PRE_PADDING;
+    const size_t post = LWS_SEND_BUFFER_POST_PADDING;
+
     CvPCA_Session *session = static_cast<CvPCA_Session*>(user);
     CvPCA_Connection conn;
 
@@ -186,14 +189,15 @@ int CvPCA_Server_Impl::callback_phonepca(struct libwebsocket_context *context,
         break;
 
 	case LWS_CALLBACK_SERVER_WRITEABLE:
-
         /* Set recording state for this session */
         if (session->recording != recording)
         {
-            const char *msg = recording ? "start" : "stop";
-            int len = strlen(msg);
+            char msg[pre + post + 10];
 
-            rc = libwebsocket_write(wsi, (unsigned char*)msg,
+            strcpy(msg+pre, recording ? "start" : "stop");
+            int len = strlen(msg+pre);
+
+            rc = libwebsocket_write(wsi, (unsigned char*)(msg+pre),
                                     len, LWS_WRITE_TEXT);
             if (rc < 0)
                 fprintf(stderr, "ERROR writing to socket (phonepca)");
