@@ -9,8 +9,10 @@
 #include <iostream>
 #include <fstream>
 #include <unordered_map>
+#include <memory>
 
 static Ui::MainWindow w;
+static std::unique_ptr<QGraphicsScene> scene_ptr;
 
 void load_default_gesture_list()
 {
@@ -55,6 +57,91 @@ std::list<std::string> get_gesture_list()
     return gestures;
 }
 
+void get_stats(
+    const std::unordered_map<int, std::list<CvPCA_Item>> &records,
+    int *nAccel, int *nOrient, float *min, float *max
+    )
+{
+    // Find the minimum and maximum of all accelerometer data
+    *nAccel = 0;
+    *nOrient = 0;
+    *min = -logf(0); // infinities
+    *max = logf(0);
+
+    for (auto kv : records)
+    {
+        auto &list = kv.second;
+
+        for (auto r : list) {
+            switch (r.type) {
+            case (CvPCA_Item::CVPCA_ACCEL):
+                (*nAccel) ++;
+                break;
+            case (CvPCA_Item::CVPCA_ORIENT):
+                (*nOrient) ++;
+                continue;
+            default:
+                continue;
+            }
+
+            if (r.accel[0] > *max) *max = r.accel[0];
+            if (r.accel[1] > *max) *max = r.accel[1];
+            if (r.accel[2] > *max) *max = r.accel[2];
+
+            if (r.accel[0] < *min) *min = r.accel[0];
+            if (r.accel[1] < *min) *min = r.accel[1];
+            if (r.accel[2] < *min) *min = r.accel[2];
+        }
+    }
+}
+
+std::unique_ptr<QGraphicsScene> recordingsScene(
+    const std::unordered_map<int, std::list<CvPCA_Item>> &records
+    )
+{
+    std::unique_ptr<QGraphicsScene> scene(new QGraphicsScene());
+    int i = 0;
+
+    int nAccel, nOrient;
+    float min, max;
+    get_stats(records, &nAccel, &nOrient, &min, &max);
+
+    for (auto kv : records)
+    {
+        auto &list = kv.second;
+
+        if (list.size() <= 0)
+            continue;
+
+        // Axes
+        scene->addLine(QLine(0, i*150,     0,   i*150+100));
+        scene->addLine(QLine(0, i*150+100, 300, i*150+100));
+
+        float top = i*150;
+        float w = 300;
+        float h = 100;
+
+        // Data
+        int n = 0;
+        float x1 = log(0), y1 = log(0);
+        for (auto r : list) {
+            int x = n * w / nAccel;
+            int y = (r.accel[0]-min) / (max-min) * h + top;
+            if (n == 0) {
+                x1 = x; y1 = y;
+                n ++;
+                continue;
+            }
+            scene->addLine(QLine(x1, y1, x, y));
+            x1 = x; y1 = y;
+            n ++;
+        }
+
+        i ++;
+    }
+    return scene;
+}
+
 int run_gui(int argc, char *argv[])
 {
     QApplication app(argc, argv);
@@ -67,6 +154,7 @@ int run_gui(int argc, char *argv[])
 
     // Set up the server
     CvPCA_Server server;
+    std::unordered_map<int, std::list<CvPCA_Item>> records;
 
     Lambda a([&](){ printf("Start\n"); server.start(w.portEdit->text().toInt()); });
     QObject::connect(w.startButton, SIGNAL(clicked()), &a, SLOT(call()));
@@ -78,11 +166,13 @@ int run_gui(int argc, char *argv[])
     QObject::connect(w.buttonStartRecording, SIGNAL(clicked()),
                      &c, SLOT(call()));
 
-    Lambda d([&](){ server.stop_recording(); });
+    Lambda d([&](){ server.stop_recording();
+            // Update visualization
+            scene_ptr = recordingsScene(records);
+            w.graphicsView->setScene(scene_ptr.get());
+        });
     QObject::connect(w.buttonStopRecording, SIGNAL(clicked()),
                      &d, SLOT(call()));
-
-    std::unordered_map<int, std::list<CvPCA_Item>> records;
 
     Lambda clear([&](){ records.clear(); w.labelCount->setNum(0); });
     QObject::connect(w.buttonClear, SIGNAL(clicked()), &clear, SLOT(call()));
@@ -170,6 +260,10 @@ int run_gui(int argc, char *argv[])
 
     if (r == 0)
         store_default_gesture_list();
+
+    // Ensure Qt doesn't free the scene, or unique_ptr causes
+    // double-free.
+    w.graphicsView->setScene(nullptr);
 
     return r;
 }
