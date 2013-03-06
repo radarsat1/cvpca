@@ -11,9 +11,9 @@ struct CvPCA_Item
 {
     int id;
     enum {
-        CVPCA_INFO,
-        CVPCA_ACCEL,
-        CVPCA_ORIENT,
+        CVPCA_INFO = 'I',
+        CVPCA_ACCEL = 'G',
+        CVPCA_ORIENT = 'O',
     } type;
     union {
         std::array<float,3> accel;
@@ -21,6 +21,7 @@ struct CvPCA_Item
     };
     std::string info;
     unsigned long long timestamp;
+    int gesture;
 
     operator std::string ();
 };

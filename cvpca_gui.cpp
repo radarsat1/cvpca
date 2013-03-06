@@ -8,11 +8,13 @@
 
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <unordered_map>
 #include <memory>
 
 static Ui::MainWindow w;
 static std::unique_ptr<QGraphicsScene> scene_ptr;
+static accel_data g_accel_data;
 
 void load_default_gesture_list()
 {
@@ -142,6 +144,104 @@ std::unique_ptr<QGraphicsScene> recordingsScene(
     return scene;
 }
 
+accel_data load_dataset(const char *filename)
+{
+    std::cout << "Reading `" << filename << "'" << std::endl;
+
+    accel_data data;
+
+    std::ifstream in;
+    in.open(filename);
+
+    std::string line, field;
+    accel_buffer_t d;
+    while (std::getline(in, line)) {
+        memset(&d, 0, sizeof(d));
+        std::stringstream ss(line);
+        int i = 0;
+        while (std::getline(ss, field, ',')) {
+            if (i==0) {
+                if (atoi(field.c_str()) == CvPCA_Item::CVPCA_ACCEL)
+                    i++;
+                else
+                    break;
+            }
+            else if (i==1)
+                i++; // ignore device number, load it all as one batch
+            else if (i==2) {
+                d.timestamp = atoll(field.c_str());
+                i++;
+            }
+            else if (i==3) {
+                d.gesture = atoi(field.c_str());
+                i++;
+            }
+            else if (i > 3 && i < 7) {
+                d.data[i-4] = atof(field.c_str());
+                i++;
+                if (i == 7)
+                    data.push_back(d);
+            }
+        }
+    }
+
+done:
+    return data;
+}
+
+void save_dataset(const char *filename,
+                  const std::unordered_map<int, std::list<CvPCA_Item>> &records)
+{
+    std::cout << "Writing `" << filename << "'" << std::endl;
+
+    std::stringstream infostr(";");
+
+    for (auto kv : records) {
+        for (auto item : kv.second) {
+            if (item.type == CvPCA_Item::CVPCA_INFO) {
+                infostr << " " << item.info;
+                printf("got one infostr\n");
+            }
+        }
+    }
+
+    std::ofstream out;
+    out.open(filename);
+
+    if (infostr.str().size() > 1) {
+        out << infostr << std::endl;
+    }
+
+    for (auto kv : records) {
+        for (auto item : kv.second) {
+            switch (item.type) {
+            case CvPCA_Item::CVPCA_ACCEL:
+                out << item.type
+                    << "," << item.id
+                    << "," << item.timestamp
+                    << "," << item.gesture
+                    << "," << item.accel[0]
+                    << "," << item.accel[1]
+                    << "," << item.accel[2]
+                    << std::endl;
+                break;
+            case CvPCA_Item::CVPCA_ORIENT:
+                out << item.type
+                    << "," << item.id
+                    << "," << item.timestamp
+                    << "," << item.gesture
+                    << "," << item.orient[0]
+                    << "," << item.orient[1]
+                    << "," << item.orient[2]
+                    << std::endl;
+                break;
+            default:
+                break;
+            }
+        }
+    }
+}
+
 int run_gui(int argc, char *argv[])
 {
     QApplication app(argc, argv);
@@ -177,17 +277,46 @@ int run_gui(int argc, char *argv[])
     Lambda clear([&](){ records.clear(); w.labelCount->setNum(0); });
     QObject::connect(w.buttonClear, SIGNAL(clicked()), &clear, SLOT(call()));
 
-    Lambda save([&](){
-            std::ofstream out;
-            out.open("data.txt");
-            for (auto kv : records) {
-                out << kv.first << std::endl;
-                for (auto item : kv.second) {
-                    out << (std::string)item << std::endl;
+    Lambda load([&](){
+            QString fileName = QFileDialog::getOpenFileName(win, "Load Data Set",
+                                                            nullptr, "*.csv");
+            if (!fileName.isEmpty()) {
+                g_accel_data = load_dataset(fileName.toAscii().data());
+                printf("Loaded %d accel items.\n", g_accel_data.size());
+                w.currentDataset->setText(fileName);
+                w.buttonPCA->setEnabled(true);
+            }
+        });
+
+    Lambda loadds([&](){
+            QList<QListWidgetItem*> sel = w.datasetList->selectedItems();
+            if (sel.size() > 0) {
+                QString fileName = sel[0]->text();
+                if (!fileName.isEmpty()) {
+                    g_accel_data = load_dataset(fileName.toAscii().data());
+                    printf("Loaded %d accel items.\n", g_accel_data.size());
+                    w.currentDataset->setText(fileName);
+                    w.buttonPCA->setEnabled(true);
                 }
             }
         });
+
+    Lambda save([&](){
+            QString fileName = QFileDialog::getSaveFileName(win, "Save Data Set",
+                                                            nullptr, "*.csv");
+            if (!fileName.isEmpty()) {
+                save_dataset(fileName.toAscii().data(), records);
+                w.datasetList->addItem(fileName);
+
+                g_accel_data = load_dataset(fileName.toAscii().data());
+                w.currentDataset->setText(fileName);
+                w.buttonPCA->setEnabled(true);
+            }
+        });
+
+    QObject::connect(w.buttonLoad, SIGNAL(clicked()), &load, SLOT(call()));
     QObject::connect(w.buttonSave, SIGNAL(clicked()), &save, SLOT(call()));
+    QObject::connect(w.datasetList, SIGNAL(itemDoubleClicked(QListWidgetItem *item)), &loadds, SLOT(call()));
 
     Lambda update_params([&](){
             QString s(w.editSecondsPerGesture->text());

@@ -10,16 +10,6 @@
 #include "cvpca_gui.h"
 #include "cvpca.h"
 
-// Structure to hold accel data while reading it
-struct accel_buffer_t
-{
-    unsigned long long timestamp;
-    unsigned int gesture;
-    double data[3];
-};
-
-typedef std::vector<accel_buffer_t> accel_data;
-
 void read_line(char *line, accel_data &data)
 {
     char *s = &line[2], *p;
