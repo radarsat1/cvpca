@@ -269,17 +269,18 @@
             </widget>
            </item>
            <item>
-            <spacer name="horizontalSpacer_2">
-             <property name="orientation">
-              <enum>Qt::Horizontal</enum>
+            <widget class="QLabel" name="labelCurrentDataset">
+             <property name="text">
+              <string>Current:</string>
              </property>
-             <property name="sizeHint" stdset="0">
-              <size>
-               <width>40</width>
-               <height>20</height>
-              </size>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLineEdit" name="currentDataset">
+             <property name="readOnly">
+              <bool>true</bool>
              </property>
-            </spacer>
+            </widget>
            </item>
            <item>
             <widget class="QToolButton" name="removeDatasetButton">
