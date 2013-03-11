@@ -293,16 +293,13 @@ int run_gui(int argc, char *argv[])
             }
         });
 
-    Lambda loadds([&](){
-            QList<QListWidgetItem*> sel = w.datasetList->selectedItems();
-            if (sel.size() > 0) {
-                QString fileName = sel[0]->text();
-                if (!fileName.isEmpty()) {
-                    g_accel_data = load_dataset(fileName.toAscii().data());
-                    printf("Loaded %d accel items.\n", g_accel_data.size());
-                    w.currentDataset->setText(fileName);
-                    w.buttonPCA->setEnabled(true);
-                }
+    LambdaItem loadds([&](QListWidgetItem* item){
+            QString fileName = item->text();
+            if (!fileName.isEmpty()) {
+                g_accel_data = load_dataset(fileName.toAscii().data());
+                printf("Loaded %d accel items.\n", g_accel_data.size());
+                w.currentDataset->setText(fileName);
+                w.buttonPCA->setEnabled(true);
             }
         });
 
@@ -321,7 +318,7 @@ int run_gui(int argc, char *argv[])
 
     QObject::connect(w.buttonLoad, SIGNAL(clicked()), &load, SLOT(call()));
     QObject::connect(w.buttonSave, SIGNAL(clicked()), &save, SLOT(call()));
-    QObject::connect(w.datasetList, SIGNAL(itemDoubleClicked(QListWidgetItem *item)), &loadds, SLOT(call()));
+    QObject::connect(w.datasetList, SIGNAL(itemDoubleClicked(QListWidgetItem*)), &loadds, SLOT(call(QListWidgetItem*)));
 
     Lambda pca([&](){
             run_pca(g_accel_data);
