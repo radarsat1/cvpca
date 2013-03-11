@@ -155,6 +155,7 @@ accel_data load_dataset(const char *filename)
 
     std::string line, field;
     accel_buffer_t d;
+    int id = -1;
     while (std::getline(in, line)) {
         memset(&d, 0, sizeof(d));
         std::stringstream ss(line);
@@ -166,8 +167,12 @@ accel_data load_dataset(const char *filename)
                 else
                     break;
             }
-            else if (i==1)
-                i++; // ignore device number, load it all as one batch
+            else if (i==1) {
+                if (id == -1) id = atoi(field.c_str());
+                else if (id != atoi(field.c_str()))
+                    goto done; // only load the first device id for now
+                i++;
+            }
             else if (i==2) {
                 d.timestamp = atoll(field.c_str());
                 i++;
