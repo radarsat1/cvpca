@@ -257,19 +257,21 @@ int CvPCA_Server_Impl::callback_phonepca(struct libwebsocket_context *context,
 
             switch (((char*)in)[0]) {
             case 'G':
-                ok = sscanf((char*)in, "G %llu %f,%f,%f",
+                ok = sscanf((char*)in, "G %llu %u %f,%f,%f",
                             &item.timestamp,
+                            &item.gesture,
                             &item.accel[0],
                             &item.accel[1],
-                            &item.accel[2]) == 4;
+                            &item.accel[2]) == 5;
                 item.type = CvPCA_Item::CVPCA_ACCEL;
                 break;
             case 'O':
-                ok = sscanf((char*)in, "G %llu %f,%f,%f",
+                ok = sscanf((char*)in, "O %llu %u %f,%f,%f",
                             &item.timestamp,
+                            &item.gesture,
                             &item.orient[0],
                             &item.orient[1],
-                            &item.orient[2]) == 4;
+                            &item.orient[2]) == 5;
                 item.type = CvPCA_Item::CVPCA_ORIENT;
                 break;
             case 'I':

@@ -30,7 +30,7 @@ function open_web_socket()
         ws.send('I ' + 'Browser id?');
         var t = setInterval(function(){
             if (ws.recording)
-                ws.send('G ' + (new Date()-0) + ' '
+                ws.send('G ' + (new Date()-0) + ' 0 '
                         + [Math.random()*4-2,
                            Math.random()*4-2,
                            Math.random()*4-2]);
