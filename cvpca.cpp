@@ -10,6 +10,8 @@
 #include "cvpca_gui.h"
 #include "cvpca.h"
 
+static std::list<cv::Mat> feature_list;
+
 void read_line(char *line, accel_data &data)
 {
     char *s = &line[2], *p;
@@ -85,76 +87,70 @@ accel_data load_data()
     return accelbuf;
 }
 
-void do_pca(double d[][3], int size)
+void calc_features(double d[][3], int size)
 {
     cv::Mat mat = cv::Mat(size, 3, CV_64F, (double*)d);
 
-    int i;
 
     cv::Mat hanning = cv::Mat(size, 1, CV_64F);
+    int i;
     for (i=0; i < size; i++) {
         hanning.at<double>(i, 0) = 0.5*(1-cos(i*2*M_PI/size));
     }
 
-    cv::Mat input[] = {mat.col(0), cv::Mat::zeros(size, 1, CV_64F)};
-    cv::Mat complexInput;
-    cv::merge(input, 2, complexInput);
+    cv::Mat spec[3];
 
-    cv::Mat complexOutput = cv::Mat(size, 2, CV_64F);
-    cv::Mat spec = cv::Mat(size, 1, CV_64F);
+    for (i=0; i<3; i++)
+    {
+        cv::Mat input[] = {mat.col(i), cv::Mat::zeros(size, 1, CV_64F)};
+        cv::Mat complexInput;
+        cv::merge(input, 2, complexInput);
 
-    printf("from pylab import *\n\n");
+        cv::Mat complexOutput = cv::Mat(size, 2, CV_64F);
+        spec[i] = cv::Mat(size, 1, CV_64F);
 
-    printf("a = array([");
-    for (i=0; i < complexInput.rows; i++) {
-        printf("%f,\n", complexInput.at<double>(i, 0));
+        cv::dft(complexInput, complexOutput, cv::DFT_COMPLEX_OUTPUT);
+
+        cv::Mat outputPlanes[2];
+        split(complexOutput, outputPlanes);
+        magnitude(outputPlanes[0], outputPlanes[1], spec[i]);
+
+        // TODO: we only need the first half of spec[i]
     }
-    printf("])\n");
 
-    cv::dft(complexInput, complexOutput, cv::DFT_COMPLEX_OUTPUT);
+    cv::Mat mult[3];
 
-    cv::Mat outputPlanes[2];
-    split(complexOutput, outputPlanes);
-    magnitude(outputPlanes[0], outputPlanes[1], spec);
+    mult[0] = cv::Mat(size, 1, CV_64F);
+    mult[1] = cv::Mat(size, 1, CV_64F);
+    mult[2] = cv::Mat(size, 1, CV_64F);
 
-    spec += cv::Scalar::all(1);
-    log(spec, spec);
+    mult[0] = spec[0].mul(spec[1]) + 1;
+    mult[1] = spec[0].mul(spec[2]) + 1;
+    mult[2] = spec[1].mul(spec[2]) + 1;
 
-    printf("b = array([");
-    for (i=0; i < spec.rows/2; i++) {
-        printf("%f,\n", spec.at<double>(i, 0));
-        //printf("%f,\n", spec.at<double>(i, 1));
-    }
-    printf("])\n");
-    printf("subplot(311); plot(a);\n");
-    printf("subplot(312); plot(log(1+abs(fft(a)[:128])));\n");
-    printf("subplot(313); plot(b);\n");
-    printf("show()\n");
+    log(mult[0], mult[0]);
+    log(mult[1], mult[1]);
+    log(mult[2], mult[2]);
 
-    exit(0);
+    feature_list.push_back( (mult[0] + mult[1] + mult[2]) / 3.0 );
+}
 
+std::pair<cv::Mat, cv::Mat> do_pca(const cv::Mat &mat)
+{
     int numpc = 2;
     cv::PCA pca(mat, cv::Mat(), CV_PCA_DATA_AS_ROW, numpc);
 
     cv::Mat pcs = cv::Mat_<double>(mat.rows, numpc);
 
+    int i;
     for (i=0; i < mat.rows; i++) {
         cv::Mat pc = pcs.row(i);
         pca.project(mat.row(i), pc);
     }
 
-    for (i=0; i < pcs.rows; i++) {
-        printf("%f, %f\n",
-               pcs.at<double>(i,0),
-               pcs.at<double>(i,1));
-    }
-
     cv::Mat eig = pca.eigenvectors;
-    for (i=0; i < numpc; i++)
-        fprintf(stderr, "%f, %f, %f\n",
-                eig.at<double>(i,0),
-                eig.at<double>(i,1),
-                eig.at<double>(i,2));
+
+    return std::pair<cv::Mat, cv::Mat>(pcs, eig);
 }
 
 std::function<double(double)> highpass(double c)
@@ -226,16 +222,56 @@ void linear_interpolate(accel_data &accelbuf,
 
             sample ++;
             t = sample * 1000.0/freq;
-        } while (t < it2->timestamp-t0);
+        } while (t < (it2->timestamp - t0));
     }
+}
+
+void run_pca(accel_data &dat)
+{
+    printf("Calculating features...\n");
+
+    feature_list.clear();
+    linear_interpolate(dat, 25, sliding_window(256, 16,
+                                               [](){return highpass(0.1);},
+                                               calc_features));
+
+    printf("Features calculated: %d\n", feature_list.size());
+
+    if (feature_list.empty())
+        return;
+
+    unsigned int size = feature_list.front().rows;
+    printf("Feature size: %d\n", size);
+
+    printf("Performing PCA...\n");
+
+    cv::Mat features = cv::Mat_<double>(feature_list.size(), size);
+    unsigned int i = 0, j = 0;
+    for (auto f : feature_list) {
+        // TODO: why doesn't this work?
+        // features.row(i) = f;
+
+        for (j = 0; j < size; j++)
+            features.at<double>(i,j) = f.at<double>(j);
+
+        i ++;
+    }
+
+    auto result = do_pca(features);
+
+    printf("Done.\n");
+
+    auto pcs = result.first;
+    auto eig = result.second;
+
+    std::cout << "pcs: " << pcs << std::endl;
+    std::cout << "eig: " << eig << std::endl;
 }
 
 int test()
 {
     accel_data dat = load_data();
-    linear_interpolate(dat, 25, sliding_window(256, 16,
-                                               [](){return highpass(0.1);},
-                                               do_pca));
+    run_pca(dat);
 
     return 0;
 }

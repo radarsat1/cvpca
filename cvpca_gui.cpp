@@ -323,6 +323,12 @@ int run_gui(int argc, char *argv[])
     QObject::connect(w.buttonSave, SIGNAL(clicked()), &save, SLOT(call()));
     QObject::connect(w.datasetList, SIGNAL(itemDoubleClicked(QListWidgetItem *item)), &loadds, SLOT(call()));
 
+    Lambda pca([&](){
+            run_pca(g_accel_data);
+        });
+
+    QObject::connect(w.buttonPCA, SIGNAL(clicked()), &pca, SLOT(call()));
+
     Lambda update_params([&](){
             QString s(w.editSecondsPerGesture->text());
             CvPCA_Params params;

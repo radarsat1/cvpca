@@ -12,6 +12,6 @@ struct accel_buffer_t
 
 typedef std::vector<accel_buffer_t> accel_data;
 
-int test();
+void run_pca(accel_data &dat);
 
 #endif // _CVPCA_H_
