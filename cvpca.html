@@ -13,7 +13,8 @@ function open_web_socket()
         WebSock = MozWebSocket;
     else
         WebSock = WebSocket;
-    var url = "ws://localhost:8080";
+
+    var url = location.href.replace('http','ws');
     ws = new WebSock(url, 'phonepca');
 
     var onclose = function () {
