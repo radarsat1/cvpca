@@ -132,7 +132,9 @@ void calc_features(double d[][3], int size)
     log(mult[1], mult[1]);
     log(mult[2], mult[2]);
 
-    feature_list.push_back( (mult[0] + mult[1] + mult[2]) / 3.0 );
+    auto result = (mult[0] + mult[1] + mult[2]) / 3.0;
+
+    feature_list.push_back( result - mean(result) );
 }
 
 std::pair<cv::Mat, cv::Mat> do_pca(const cv::Mat &mat)
