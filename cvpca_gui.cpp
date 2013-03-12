@@ -13,7 +13,7 @@
 #include <memory>
 
 static Ui::MainWindow w;
-static std::unique_ptr<QGraphicsScene> scene_ptr;
+static std::map<std::string, std::shared_ptr<QGraphicsScene>> scene_ptrs;
 static accel_data g_accel_data;
 
 void load_default_gesture_list()
@@ -117,11 +117,11 @@ void get_stats(const accel_data &data, int *nAccel,
     }
 }
 
-std::unique_ptr<QGraphicsScene> recordingsScene(
+std::shared_ptr<QGraphicsScene> recordingsScene(
     const std::unordered_map<int, std::list<CvPCA_Item>> &records
     )
 {
-    std::unique_ptr<QGraphicsScene> scene(new QGraphicsScene());
+    std::shared_ptr<QGraphicsScene> scene(new QGraphicsScene());
     int i = 0;
 
     int nAccel, nOrient;
@@ -164,9 +164,9 @@ std::unique_ptr<QGraphicsScene> recordingsScene(
     return scene;
 }
 
-std::unique_ptr<QGraphicsScene> acceldataScene(const accel_data &data)
+std::shared_ptr<QGraphicsScene> acceldataScene(const accel_data &data)
 {
-    std::unique_ptr<QGraphicsScene> scene(new QGraphicsScene());
+    std::shared_ptr<QGraphicsScene> scene(new QGraphicsScene());
     int i = 0;
 
     int nAccel;
@@ -201,9 +201,9 @@ std::unique_ptr<QGraphicsScene> acceldataScene(const accel_data &data)
     return scene;
 }
 
-std::unique_ptr<QGraphicsScene> pcScene(cv::Mat pcs)
+std::shared_ptr<QGraphicsScene> pcScene(cv::Mat pcs)
 {
-    std::unique_ptr<QGraphicsScene> scene(new QGraphicsScene());
+    std::shared_ptr<QGraphicsScene> scene(new QGraphicsScene());
 
     double minX, maxX, minY, maxY;
 
@@ -221,6 +221,20 @@ std::unique_ptr<QGraphicsScene> pcScene(cv::Mat pcs)
     }
 
     return scene;
+}
+
+void add_and_show_scene(const std::string &name,
+                        const std::shared_ptr<QGraphicsScene> &scene)
+{
+    scene_ptrs[name] = scene;
+    int i = w.vizModeComboBox->findText(name.c_str());
+    if (i == -1) {
+        w.vizModeComboBox->addItem(name.c_str());
+        i = w.vizModeComboBox->findText(name.c_str());
+        w.vizModeComboBox->setCurrentIndex(i);
+    }
+    else
+        w.vizModeComboBox->setCurrentIndex(i);
 }
 
 accel_data load_dataset(const char *filename)
@@ -352,8 +366,7 @@ int run_gui(int argc, char *argv[])
 
     Lambda d([&](){ server.stop_recording();
             // Update visualization
-            scene_ptr = recordingsScene(records);
-            w.graphicsView->setScene(scene_ptr.get());
+            add_and_show_scene("Recording", recordingsScene(records));
         });
     QObject::connect(w.buttonStopRecording, SIGNAL(clicked()),
                      &d, SLOT(call()));
@@ -367,8 +380,9 @@ int run_gui(int argc, char *argv[])
             if (!fileName.isEmpty()) {
                 g_accel_data = load_dataset(fileName.toAscii().data());
                 printf("Loaded %d accel items.\n", g_accel_data.size());
-                scene_ptr = acceldataScene(g_accel_data);
-                w.graphicsView->setScene(scene_ptr.get());
+
+                add_and_show_scene("Accel Data", acceldataScene(g_accel_data));
+
                 w.currentDataset->setText(fileName);
                 w.buttonPCA->setEnabled(true);
             }
@@ -379,8 +393,9 @@ int run_gui(int argc, char *argv[])
             if (!fileName.isEmpty()) {
                 g_accel_data = load_dataset(fileName.toAscii().data());
                 printf("Loaded %d accel items.\n", g_accel_data.size());
-                scene_ptr = acceldataScene(g_accel_data);
-                w.graphicsView->setScene(scene_ptr.get());
+
+                add_and_show_scene("Accel Data", acceldataScene(g_accel_data));
+
                 w.currentDataset->setText(fileName);
                 w.buttonPCA->setEnabled(true);
             }
@@ -407,8 +422,7 @@ int run_gui(int argc, char *argv[])
             auto pcs = run_pca(g_accel_data);
 
             // Update visualization
-            scene_ptr = pcScene(pcs);
-            w.graphicsView->setScene(scene_ptr.get());
+            add_and_show_scene("Principle Components", pcScene(pcs));
         });
 
     QObject::connect(w.buttonPCA, SIGNAL(clicked()), &pca, SLOT(call()));
@@ -428,6 +442,15 @@ int run_gui(int argc, char *argv[])
             server.get_params().secondsPerGesture));
 
     w.labelCount->setNum(0);
+
+    Lambda changeScene([&](){
+            const QString &name = w.vizModeComboBox->currentText();
+            auto scene = scene_ptrs.find(name.toAscii().data());
+            if (scene != scene_ptrs.end())
+                w.graphicsView->setScene(scene->second.get());
+        });
+    QObject::connect(w.vizModeComboBox, SIGNAL(currentIndexChanged(int)),
+                     &changeScene, SLOT(call()));
 
     // Set up the timer
     QTimer *timer = new QTimer(win);
