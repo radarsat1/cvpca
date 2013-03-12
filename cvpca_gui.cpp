@@ -97,6 +97,26 @@ void get_stats(
     }
 }
 
+void get_stats(const accel_data &data, int *nAccel,
+               float *min, float *max)
+{
+    // Find the minimum and maximum of all accelerometer data
+    *nAccel = data.size();
+    *min = -logf(0); // infinities
+    *max = logf(0);
+
+    for (auto d : data)
+    {
+        if (d.data[0] > *max) *max = d.data[0];
+        if (d.data[1] > *max) *max = d.data[1];
+        if (d.data[2] > *max) *max = d.data[2];
+
+        if (d.data[0] < *min) *min = d.data[0];
+        if (d.data[1] < *min) *min = d.data[1];
+        if (d.data[2] < *min) *min = d.data[2];
+    }
+}
+
 std::unique_ptr<QGraphicsScene> recordingsScene(
     const std::unordered_map<int, std::list<CvPCA_Item>> &records
     )
@@ -141,6 +161,43 @@ std::unique_ptr<QGraphicsScene> recordingsScene(
 
         i ++;
     }
+    return scene;
+}
+
+std::unique_ptr<QGraphicsScene> acceldataScene(const accel_data &data)
+{
+    std::unique_ptr<QGraphicsScene> scene(new QGraphicsScene());
+    int i = 0;
+
+    int nAccel;
+    float min, max;
+    get_stats(data, &nAccel, &min, &max);
+
+    // Axes
+    scene->addLine(QLine(0, i*150,     0,   i*150+100));
+    scene->addLine(QLine(0, i*150+100, 300, i*150+100));
+
+    float top = i*150;
+    float w = 300;
+    float h = 100;
+
+    // Data
+    int n = 0;
+    float x1 = log(0), y1 = log(0);
+    for (auto d : data)
+    {
+        int x = n * w / nAccel;
+        int y = (d.data[0]-min) / (max-min) * h + top;
+        if (n == 0) {
+            x1 = x; y1 = y;
+            n ++;
+            continue;
+        }
+        scene->addLine(QLine(x1, y1, x, y));
+        x1 = x; y1 = y;
+        n ++;
+    }
+
     return scene;
 }
 
@@ -310,6 +367,8 @@ int run_gui(int argc, char *argv[])
             if (!fileName.isEmpty()) {
                 g_accel_data = load_dataset(fileName.toAscii().data());
                 printf("Loaded %d accel items.\n", g_accel_data.size());
+                scene_ptr = acceldataScene(g_accel_data);
+                w.graphicsView->setScene(scene_ptr.get());
                 w.currentDataset->setText(fileName);
                 w.buttonPCA->setEnabled(true);
             }
@@ -320,6 +379,8 @@ int run_gui(int argc, char *argv[])
             if (!fileName.isEmpty()) {
                 g_accel_data = load_dataset(fileName.toAscii().data());
                 printf("Loaded %d accel items.\n", g_accel_data.size());
+                scene_ptr = acceldataScene(g_accel_data);
+                w.graphicsView->setScene(scene_ptr.get());
                 w.currentDataset->setText(fileName);
                 w.buttonPCA->setEnabled(true);
             }
