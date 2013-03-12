@@ -2,6 +2,9 @@
 #ifndef _CVPCA_H_
 #define _CVPCA_H_
 
+#include <opencv2/core/core_c.h>
+#include <opencv2/ml/ml.hpp>
+
 // Structure to hold accel data while reading it
 struct accel_buffer_t
 {
@@ -12,6 +15,6 @@ struct accel_buffer_t
 
 typedef std::vector<accel_buffer_t> accel_data;
 
-void run_pca(accel_data &dat);
+cv::Mat run_pca(accel_data &dat);
 
 #endif // _CVPCA_H_

@@ -144,6 +144,28 @@ std::unique_ptr<QGraphicsScene> recordingsScene(
     return scene;
 }
 
+std::unique_ptr<QGraphicsScene> pcScene(cv::Mat pcs)
+{
+    std::unique_ptr<QGraphicsScene> scene(new QGraphicsScene());
+
+    double minX, maxX, minY, maxY;
+
+    minMaxIdx(pcs.col(0), &minX, &maxX);
+    minMaxIdx(pcs.col(1), &minY, &maxY);
+
+    for (int r = 0; r < pcs.rows; r++)
+    {
+        double x = pcs.at<double>(r,0);
+        double y = pcs.at<double>(r,1);
+        scene->addRect(x*300/(maxX-minX),
+                       y*300/(minY-maxY),
+                       5, 5,
+                       QPen(QColor(255,0,0)));
+    }
+
+    return scene;
+}
+
 accel_data load_dataset(const char *filename)
 {
     std::cout << "Reading `" << filename << "'" << std::endl;
@@ -321,7 +343,11 @@ int run_gui(int argc, char *argv[])
     QObject::connect(w.datasetList, SIGNAL(itemDoubleClicked(QListWidgetItem*)), &loadds, SLOT(call(QListWidgetItem*)));
 
     Lambda pca([&](){
-            run_pca(g_accel_data);
+            auto pcs = run_pca(g_accel_data);
+
+            // Update visualization
+            scene_ptr = pcScene(pcs);
+            w.graphicsView->setScene(scene_ptr.get());
         });
 
     QObject::connect(w.buttonPCA, SIGNAL(clicked()), &pca, SLOT(call()));

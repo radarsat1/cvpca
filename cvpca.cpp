@@ -226,7 +226,7 @@ void linear_interpolate(accel_data &accelbuf,
     }
 }
 
-void run_pca(accel_data &dat)
+cv::Mat run_pca(accel_data &dat)
 {
     printf("Calculating features...\n");
 
@@ -238,7 +238,7 @@ void run_pca(accel_data &dat)
     printf("Features calculated: %d\n", feature_list.size());
 
     if (feature_list.empty())
-        return;
+        return cv::Mat();
 
     unsigned int size = feature_list.front().rows;
     printf("Feature size: %d\n", size);
@@ -266,6 +266,7 @@ void run_pca(accel_data &dat)
 
     std::cout << "pcs: " << pcs << std::endl;
     std::cout << "eig: " << eig << std::endl;
+    return pcs;
 }
 
 int test()
