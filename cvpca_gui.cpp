@@ -420,6 +420,8 @@ int run_gui(int argc, char *argv[])
 
     Lambda pca([&](){
             auto pcs = run_pca(g_accel_data);
+            if (pcs.empty())
+                return;
 
             // Update visualization
             add_and_show_scene("Principle Components", pcScene(pcs));
