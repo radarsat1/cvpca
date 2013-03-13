@@ -212,6 +212,9 @@ void linear_interpolate(accel_data &accelbuf,
     double t = 0;
     unsigned int sample = 0;
     for (it2++; it2!=accelbuf.end(); it1++, it2++) {
+        if (t > (it2->timestamp - t0))
+            continue;
+
         do {
             double r = (t - (it1->timestamp - t0))
                 / (double)(it2->timestamp - it1->timestamp);
