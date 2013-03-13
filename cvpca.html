@@ -4,10 +4,15 @@
 <script language="javascript">
 
 var ws;
+var on_accel = function(time, accel){};
+var current_gesture = -1;
 
 function open_web_socket()
 {
     var text = document.getElementById('text');
+    var status = document.getElementById('status');
+    var gesture = document.getElementById('gesture');
+
     var WebSock = null;
     if (typeof MozWebSocket!=='undefined')
         WebSock = MozWebSocket;
@@ -29,17 +34,14 @@ function open_web_socket()
         text.innerHTML = '<br>websocket open "'+url+'"';
         ws.recording = false;
         ws.send('I ' + 'Browser id?');
-        var t = setInterval(function(){
-            if (ws.recording)
-                ws.send('G ' + (new Date()-0) + ' 0 '
-                        + [Math.random()*4-2,
-                           Math.random()*4-2,
-                           Math.random()*4-2]);
-        }, 100);
+        on_accel = function(time, accel){
+            if (ws.recording && current_gesture >= 0)
+                ws.send('A ' + (new Date()-0) + ' ' + current_gesture + ' ' + accel);
+        };
 
         ws.onclose = function() {
             ws.onclose = onclose;
-            clearInterval(t);
+            on_accel = function(time, accel){};
             onclose();
         }
     };
@@ -48,10 +50,14 @@ function open_web_socket()
         text.innerHTML = '<br>websocket message: "'+msg.data+'"' + text.innerHTML;
         command = JSON.parse(msg.data);
         console.log(command);
-        if (command.cmd === 'start')
+        if (command.cmd === 'start') {
             ws.recording = true;
-        else if (command.cmd === 'stop')
+            setup_recording(ws);
+        }
+        else if (command.cmd === 'stop') {
             ws.recording = false;
+            gesture.innerHTML = '';
+        }
         else if (command.cmd === 'params')
             ws.params = command;
     };
@@ -61,14 +67,94 @@ function open_web_socket()
     return ws;
 }
 
+function setup_recording(ws)
+{
+    gesture.innerHTML = '';
+
+    var update_gesture = function(g){
+        current_gesture = g;
+        if (g < ws.params.gestures.length && ws.recording) {
+            gesture.innerHTML = ws.params.gestures[g];
+            setTimeout(function(){update_gesture(g+1);},
+                       ws.params.secondsPerGesture * 1000);
+        }
+        else
+            gesture.innerHTML = 'Done!';
+    };
+
+    var countdown = function(t){
+        gesture.innerHTML = 'Starting in '+t+' seconds...';
+        if (ws.recording) {
+            if (t==0)
+                setTimeout(function(){update_gesture(0);}, 1000);
+            else
+                setTimeout(function(){countdown(t-1);}, 1000);
+        }
+        else
+            gesture.innerHTML = '';
+    };
+
+    current_gesture = -1;
+
+    countdown(5);
+}
+
+function hookAccelerometers(func)
+{
+    var status = document.getElementById('status');
+    var hasMotion = typeof window.ondevicemotion !== 'undefined';
+    if (hasMotion) {
+        window.ondevicemotion = function (e) {
+            if (typeof e.acceleration !== 'undefined'
+                && e.acceleration !== null)
+            {
+                func(e);
+            } else {
+                status.innerHTML += '<br/>No acceleration';
+                window.ondevicemotion = null;
+            }
+        }
+    }
+    else {
+        status.innerHTML += '<br/>No motion info available.';
+    }
+}
+
+// Don't allow browser to react to touch events, stop zoom/scale/move
+// operations on page.
+function cancelTouches()
+{
+    var stopit = function(e) { e.preventDefault(); return false; };
+    document.body.ontouchstart = stopit;
+    document.body.ontouchmove = stopit;
+    document.ontouchstart = stopit;
+    document.ontouchmove = stopit;
+    window.ontouchstart = stopit;
+    window.ontouchmove = stopit;
+    return false;
+}
+
 function init()
 {
     ws = open_web_socket();
+
+    hookAccelerometers(function(e) {
+            var time = e.timeStamp-0;
+            var a = e.acceleration;
+            on_accel(time, [a.x, a.y, a.z]);
+        });
+
+    cancelTouches();
 }
 
 </script>
+<style type="text/css">
+  #gesture { font-size: 30pt; }
+</style>
 </head>
 <body onload="init();">
+<div id='gesture'></div>
+<div id='status'></div>
 <div id='text'></div>
 </body>
 </html>

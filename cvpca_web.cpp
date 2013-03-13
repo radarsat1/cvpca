@@ -107,7 +107,7 @@ CvPCA_Item::operator std::string ()
         sprintf(str, "I.%d %s", id, info.c_str());
         break;
     case CVPCA_ACCEL:
-        sprintf(str, "G.%d %llu %f,%f,%f", id, timestamp,
+        sprintf(str, "A.%d %llu %f,%f,%f", id, timestamp,
                 accel[0], accel[1], accel[2]);
         break;
     case CVPCA_ORIENT:
@@ -256,8 +256,8 @@ int CvPCA_Server_Impl::callback_phonepca(struct libwebsocket_context *context,
                 break;
 
             switch (((char*)in)[0]) {
-            case 'G':
-                ok = sscanf((char*)in, "G %llu %u %f,%f,%f",
+            case 'A':
+                ok = sscanf((char*)in, "A %llu %u %f,%f,%f",
                             &item.timestamp,
                             &item.gesture,
                             &item.accel[0],

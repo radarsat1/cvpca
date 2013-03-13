@@ -12,7 +12,7 @@ struct CvPCA_Item
     int id;
     enum {
         CVPCA_INFO = 'I',
-        CVPCA_ACCEL = 'G',
+        CVPCA_ACCEL = 'A',
         CVPCA_ORIENT = 'O',
     } type;
     union {
