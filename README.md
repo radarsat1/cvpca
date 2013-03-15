@@ -65,3 +65,27 @@ device orientation and gravity.
 
 Currently, the principle components as well as the eigenvectors are
 additionally printed to the console.
+
+## Building this program
+
+This program uses the Qt4 build system.  It also depends on
+libwebsockets, an excellent minimal C websocket and HTTP library.
+Finally, it uses OpenCV2 to perform PCA.
+
+On Ubuntu Linux, you should install the packages `libopencv-ml-dev`
+and `libqt4-dev`.  Then, you must download and build libwebsockets,
+and finally run Qt's `qmake` program.
+
+Since libwebsockets is included as a git submodule, simply run,
+
+    git submodule update
+
+to download the libwebsockets source code.  Then, `cd` to the
+libwebsockets directory and build it.
+
+Finally, run,
+
+    qmake-qt4
+    make
+
+This should successfully build the CvPCA program.
