@@ -78,14 +78,21 @@ and finally run Qt's `qmake` program.
 
 Since libwebsockets is included as a git submodule, simply run,
 
+    git submodule init
     git submodule update
 
 to download the libwebsockets source code.  Then, `cd` to the
-libwebsockets directory and build it.
+libwebsockets directory and build it:
 
-Finally, run,
+    cd libwebsockets
+    ./autogen.sh
+    ./configure && make
 
+Finally, build CvPCA:
+
+    cd ..
     qmake-qt4
     make
 
-This should successfully build the CvPCA program.
+On success, there should be an executable called `cvpca` in the
+current directory.
